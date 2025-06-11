@@ -1,19 +1,10 @@
 import axios from 'axios';
-import { Request, Response } from 'express';
-import { getAccessToken, getKajabiOffers } from '../services/kajabi.service';
+import { getAccessToken } from '../services/kajabi.service';
 
-const baseURL = 'https://api.kajabi.com/v1';
-
-export const getOffers = async (_req: Request, res: Response) => {
-  try {
-    const offers = await getKajabiOffers();
-    res.json(offers);
-  } catch (error) {
-    res.status(500).json({ message: 'Error al obtener ofertas', error });
-  }
-};
+const baseURL = "https://api.kajabi.com/admin/api"
 
 export async function getCourses() {
+  console.log("Entering getCourses function");
   const token = await getAccessToken();
 
   const response = await axios.get(`${baseURL}/courses`, {
@@ -22,6 +13,23 @@ export async function getCourses() {
 
   return response.data;
 }
+
+export const getAllProducts = async () => {
+  try {
+    const response = await axios.get(`${baseURL}/products`, {
+      headers: {
+        Authorization: `Bearer ${process.env.KAJABI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log("first response:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching products from Kajabi:', error);
+    throw error;
+  }
+};
 
 async function createProduct(productData: any) {
   const token = await getAccessToken();
