@@ -6,8 +6,12 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": ["node"],                   // 🔑 IMPORTANTE: permite usar process, __dirname, etc.
+    "skipLibCheck": true,
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
-  }
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],                    // Asegura que solo compile el código fuente
+  "exclude": ["node_modules", "dist"]    // Evita errores en módulos externos
 }
