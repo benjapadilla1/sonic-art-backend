@@ -1,11 +1,17 @@
 import axios from "axios";
 import { Request, Response } from "express";
+import { createUserProfile } from "./user.controller";
+
+interface FirebaseAuthResponse {
+  idToken: string;
+  localId: string;
+}
 
 export const login = async (req: Request, res: Response): Promise<any> => {
   const { email, password } = req.body;
 
   try {
-    const { data } = await axios.post(
+    const { data } = await axios.post<FirebaseAuthResponse>(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,
       {
         email,
@@ -25,7 +31,7 @@ export const register = async (req: Request, res: Response): Promise<any> => {
   const { email, password } = req.body;
 
   try {
-    const { data } = await axios.post(
+    const { data } = await axios.post<FirebaseAuthResponse>(
       `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${process.env.FIREBASE_API_KEY}`,
       {
         email,
@@ -33,6 +39,8 @@ export const register = async (req: Request, res: Response): Promise<any> => {
         returnSecureToken: true,
       }
     );
+
+    await createUserProfile(data.localId, email);
 
     return res.status(201).json({ token: data.idToken, userId: data.localId });
   } catch (error: any) {
