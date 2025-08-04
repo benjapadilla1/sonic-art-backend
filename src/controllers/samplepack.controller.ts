@@ -28,10 +28,13 @@ export const getSamplePackById = async (
   res: Response
 ): Promise<any> => {
   try {
-    const doc = await samplePackCollection.doc(req.params.id).get();
-    if (!doc.exists) {
+    const snapshot = await samplePackCollection
+      .where("id", "==", req.params.id)
+      .get();
+    if (snapshot.empty) {
       return res.status(404).json({ message: "Sample Pack not found" });
     }
+    const doc = snapshot.docs[0];
     res.json({ id: doc.id, ...doc.data() });
   } catch (error) {
     res.status(500).json({ message: "Error fetching sample pack", error });
@@ -63,7 +66,18 @@ export const updateSamplePack = async (req: Request, res: Response) => {
 
 export const deleteSamplePack = async (req: Request, res: Response) => {
   try {
-    await samplePackCollection.doc(req.params.id).delete();
+    const snapshot = await samplePackCollection
+      .where("id", "==", req.params.id)
+      .get();
+
+    if (snapshot.empty) {
+      res.status(404).json({ message: "No se encontró el sample Pack" });
+      return;
+    }
+
+    const batch = admin.firestore().batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
     res.status(200).json({ message: "Sample Pack deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Error deleting sample pack", error });

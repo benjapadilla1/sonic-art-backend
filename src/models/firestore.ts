@@ -1,9 +1,26 @@
 export interface Module {
   id: string;
   title: string;
-  videoUrl: string;
   description: string;
-  order: number; // orden del módulo en el curso
+  chapters: Chapter[];
+  order: number;
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  content: string;
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt?: FirebaseFirestore.Timestamp;
+}
+
+export interface Chapter {
+  id: string;
+  title: string;
+  description: string;
+  comments?: Comment[];
+  order: number;
+  videoUrl: string;
 }
 
 export interface Course {
@@ -20,8 +37,10 @@ export interface Course {
 
 export interface SamplePack {
   id?: string;
-  name: string;
+  title: string;
   description?: string;
+  coverImageUrl: string;
+  previewTracks: string[];
   price: number;
   downloadUrl: string;
   category?: string;
