@@ -1,68 +1,25 @@
-import axios from "axios";
-import { Request, Response } from "express";
-import FormData from "form-data";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { r2 } from "../config/s3Client";
 
-export const uploadPhoto = async (req: Request, res: Response) => {
+interface UploadFile {
+  key: string;
+  file: Express.Multer.File;
+}
+
+export const uploadFile = async ({ key, file }: UploadFile) => {
   try {
-    const file = req.file;
-    if (!file) {
-      res.status(400).send("No file uploaded.");
-      return;
-    }
-    const form = new FormData();
-    form.append("file", file.buffer, file.originalname);
-    form.append("requireSignedURLs", "false");
-    console.log("form", form);
-
-    const response = await axios.post(
-      `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_STREAM_ACCOUNT_ID}/stream`,
-      form,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.CLOUDFLARE_STREAM_TOKEN}`,
-          ...form.getHeaders(),
-        },
-      }
-    );
-    res.status(200).json(response.data);
-    return;
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("An error occurred while uploading the file.");
-    return;
-  }
-};
-
-export const uploadVideo = async (req: Request, res: Response) => {
-  try {
-    const file = req.file;
-
-    if (!file) {
-      res.status(400).send("No file uploaded.");
-      return;
-    }
-
-    const form = new FormData();
-    form.append("file", file.buffer, file.originalname);
-    form.append("requireSignedURLs", "false");
-    console.log("form", form);
-
-    const response = await axios.post(
-      `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_STREAM_ACCOUNT_ID}/stream`,
-      form,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.CLOUDFLARE_STREAM_TOKEN}`,
-          ...form.getHeaders(),
-        },
-      }
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      })
     );
 
-    res.status(200).json(response.data);
-    return;
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("An error occurred while uploading the file.");
-    return;
+    return key;
+  } catch (err) {
+    console.error(err);
+    throw new Error("Error uploading file to Cloudflare R2.");
   }
 };

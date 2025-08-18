@@ -2,21 +2,35 @@ import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import admin, { db } from "../config/firebase";
 import { Course } from "../models/firestore";
+import { getSignedUrlFromKey } from "../utils/getSignedUrlFromKet";
+import { uploadFile } from "./upload.controller";
 
 const coursesCollection = db.collection("courses");
 
 export const getAllCourses = async (_req: Request, res: Response) => {
   try {
     const snapshot = await coursesCollection.orderBy("createdAt", "desc").get();
-    const courses: Course[] = snapshot.docs.map(
-      (doc) =>
-        ({
+
+    const courses: Course[] = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const course = doc.data() as Course;
+
+        if (course.coverImageUrl) {
+          course.coverImageUrl = await getSignedUrlFromKey(
+            course.coverImageUrl
+          );
+        }
+
+        return {
           id: doc.id,
-          ...doc.data(),
-        } as Course)
+          ...course,
+        };
+      })
     );
+
     res.json(courses);
   } catch (error) {
+    console.error("Error fetching courses:", error);
     res.status(500).json({ message: "Error fetching courses", error });
   }
 };
@@ -29,28 +43,84 @@ export const getCourseById = async (
     const snapshot = await coursesCollection
       .where("id", "==", req.params.id)
       .get();
+
     if (snapshot.empty) {
       return res.status(404).json({ message: "Course not found" });
     }
+
     const doc = snapshot.docs[0];
-    res.json({ id: doc.id, ...doc.data() });
+    const course = doc.data();
+
+    if (course.coverImageUrl) {
+      course.coverImageUrl = await getSignedUrlFromKey(course.coverImageUrl);
+    }
+
+    if (course.modules && Array.isArray(course.modules)) {
+      for (const module of course.modules) {
+        if (module.chapters && Array.isArray(module.chapters)) {
+          for (const chapter of module.chapters) {
+            if (chapter.videoUrl) {
+              chapter.videoUrl = await getSignedUrlFromKey(chapter.videoUrl);
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ id: doc.id, ...course });
   } catch (error) {
+    console.error("Error fetching course:", error);
     res.status(500).json({ message: "Error fetching course", error });
   }
 };
 
 export const createCourse = async (req: Request, res: Response) => {
   try {
-    const courseData: Course = {
-      ...req.body,
+    const { title, description, price, duration } = req.body;
+    const rawModules = req.body.modules;
+    const modulesParsed = JSON.parse(rawModules);
+
+    const files = req.files as Express.Multer.File[];
+
+    const getFileByField = (fieldname: string) =>
+      files.find((f) => f.fieldname === fieldname);
+
+    for (let m = 0; m < modulesParsed.length; m++) {
+      const module = modulesParsed[m];
+      for (let c = 0; c < module.chapters.length; c++) {
+        const chapter = module.chapters[c];
+        const file = getFileByField(chapter.videoUrl);
+        if (file) {
+          const key = `videos/${uuidv4()}-${file.originalname}`;
+          chapter.videoUrl = await uploadFile({ key, file });
+        }
+      }
+    }
+
+    const coverImageFile = getFileByField("coverImage");
+    let coverImageUrl = "";
+    if (coverImageFile) {
+      const key = `cursos/${uuidv4()}-${coverImageFile.originalname}`;
+      coverImageUrl = await uploadFile({ key, file: coverImageFile });
+    }
+
+    const courseData = {
       id: uuidv4(),
+      title,
+      description,
+      price,
+      duration,
+      coverImageUrl,
+      modules: modulesParsed,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now(),
     };
+
     const newDoc = await coursesCollection.add(courseData);
 
     res.status(201).json({ id: newDoc.id });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Error creating course", error });
   }
 };
@@ -65,8 +135,14 @@ export const updateCourse = async (req: Request, res: Response) => {
       return;
     }
 
+    let dataToUpdate = { ...req.body };
+    if (req.body.coverImageUrl) {
+      const signedUrl = await getSignedUrlFromKey(req.body.coverImageUrl);
+      dataToUpdate.coverImageUrl = signedUrl;
+    }
+
     await snapshot.docs[0].ref.update({
-      ...req.body,
+      ...dataToUpdate,
       updatedAt: admin.firestore.Timestamp.now(),
     });
 

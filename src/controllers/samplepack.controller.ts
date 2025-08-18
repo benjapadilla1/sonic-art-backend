@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import admin, { db } from "../config/firebase";
 import { SamplePack } from "../models/firestore";
+import { getSignedUrlFromKey } from "../utils/getSignedUrlFromKet";
+import { uploadFile } from "./upload.controller";
 
 const samplePackCollection = db.collection("samplePacks");
 
@@ -10,15 +12,42 @@ export const getAllSamplePacks = async (_req: Request, res: Response) => {
     const snapshot = await samplePackCollection
       .orderBy("createdAt", "desc")
       .get();
-    const samplePacks: SamplePack[] = snapshot.docs.map(
-      (doc) =>
-        ({
+
+    const samplePacks: SamplePack[] = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const samplePack = doc.data() as SamplePack;
+
+        if (samplePack.coverImageUrl) {
+          samplePack.coverImageUrl = await getSignedUrlFromKey(
+            samplePack.coverImageUrl
+          );
+        }
+
+        if (samplePack.downloadUrl) {
+          samplePack.downloadUrl = await getSignedUrlFromKey(
+            samplePack.downloadUrl
+          );
+        }
+
+        if (
+          samplePack.previewTracks &&
+          Array.isArray(samplePack.previewTracks)
+        ) {
+          samplePack.previewTracks = await Promise.all(
+            samplePack.previewTracks.map((p) => getSignedUrlFromKey(p))
+          );
+        }
+
+        return {
           id: doc.id,
-          ...doc.data(),
-        } as SamplePack)
+          ...samplePack,
+        };
+      })
     );
+
     res.json(samplePacks);
   } catch (error) {
+    console.error("Error fetching sample packs:", error);
     res.status(500).json({ message: "Error fetching sample packs", error });
   }
 };
@@ -31,35 +60,127 @@ export const getSamplePackById = async (
     const snapshot = await samplePackCollection
       .where("id", "==", req.params.id)
       .get();
+
     if (snapshot.empty) {
-      return res.status(404).json({ message: "Sample Pack not found" });
+      return res.status(404).json({ message: "Sample pack not found" });
     }
+
     const doc = snapshot.docs[0];
-    res.json({ id: doc.id, ...doc.data() });
+    const samplePack = doc.data() as SamplePack;
+
+    if (samplePack.coverImageUrl) {
+      samplePack.coverImageUrl = await getSignedUrlFromKey(
+        samplePack.coverImageUrl
+      );
+    }
+
+    if (samplePack.downloadUrl) {
+      samplePack.downloadUrl = await getSignedUrlFromKey(
+        samplePack.downloadUrl
+      );
+    }
+
+    if (samplePack.previewTracks && Array.isArray(samplePack.previewTracks)) {
+      samplePack.previewTracks = await Promise.all(
+        samplePack.previewTracks.map((p) => getSignedUrlFromKey(p))
+      );
+    }
+
+    res.json({ id: doc.id, ...samplePack });
   } catch (error) {
+    console.error("Error fetching sample pack:", error);
     res.status(500).json({ message: "Error fetching sample pack", error });
   }
 };
 
 export const createSamplePack = async (req: Request, res: Response) => {
   try {
-    const samplePackData: SamplePack = {
-      ...req.body,
+    const { title, description, price } = req.body;
+
+    const files = req.files as Express.Multer.File[];
+    const getFileByField = (fieldname: string) =>
+      files.find((f) => f.fieldname === fieldname);
+
+    let coverImageUrl = "";
+    const coverImageFile = getFileByField("coverImage");
+    if (coverImageFile) {
+      const key = `samplepacks/cover-${uuidv4()}-${
+        coverImageFile.originalname
+      }`;
+      coverImageUrl = await uploadFile({ key, file: coverImageFile });
+    }
+
+    // Subir archivo ZIP
+    let zipUrl = "";
+    const zipFile = getFileByField("zipFile");
+    if (zipFile) {
+      const key = `samplepacks/zips/${uuidv4()}-${zipFile.originalname}`;
+      zipUrl = await uploadFile({ key, file: zipFile });
+    }
+
+    // Subir previews (pueden ser 1 o más)
+    const previews: string[] = [];
+    files
+      .filter((f) => f.fieldname.startsWith("preview"))
+      .forEach(async (previewFile) => {
+        const key = `samplepacks/previews/${uuidv4()}-${
+          previewFile.originalname
+        }`;
+        const uploadedUrl = await uploadFile({ key, file: previewFile });
+        previews.push(uploadedUrl);
+      });
+
+    const samplePackData = {
       id: uuidv4(),
+      title,
+      description,
+      price,
+      coverImageUrl,
+      zipUrl,
+      previews,
       createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now(),
     };
+
     const newDoc = await samplePackCollection.add(samplePackData);
+
     res.status(201).json({ id: newDoc.id });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Error creating sample pack", error });
   }
 };
 
 export const updateSamplePack = async (req: Request, res: Response) => {
   try {
-    await samplePackCollection.doc(req.params.id).update(req.body);
+    const snapshot = await samplePackCollection
+      .where("id", "==", req.params.id)
+      .get();
+
+    if (snapshot.empty) {
+      res.status(404).json({ message: "Sample Pack not found" });
+      return;
+    }
+
+    let dataToUpdate = { ...req.body };
+
+    if (req.body.coverImageUrl) {
+      dataToUpdate.coverImageUrl = await getSignedUrlFromKey(
+        req.body.coverImageUrl
+      );
+    }
+    if (req.body.zipUrl) {
+      dataToUpdate.zipUrl = await getSignedUrlFromKey(req.body.zipUrl);
+    }
+
+    await snapshot.docs[0].ref.update({
+      ...dataToUpdate,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
     res.status(200).json({ message: "Sample Pack updated successfully" });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Error updating sample pack", error });
   }
 };

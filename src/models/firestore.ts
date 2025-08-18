@@ -30,6 +30,7 @@ export interface Course {
   price: number;
   duration: number;
   category?: string;
+  coverImageUrl?: string;
   modules: Module[];
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt?: FirebaseFirestore.Timestamp;
