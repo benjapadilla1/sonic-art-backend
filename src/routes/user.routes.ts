@@ -9,7 +9,7 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 const router = Router();
 
 router.get("/", getAllUsers);
+router.get("/me", requireAdmin, isUserAdmin);
 router.get("/:uid", getUserById);
-router.get("/is-admin", requireAdmin, isUserAdmin);
 
 export default router;

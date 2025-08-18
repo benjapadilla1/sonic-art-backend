@@ -28,9 +28,9 @@ export const requireAdmin = async (
     const decodedToken = await admin.auth().verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    const userDoc = await db.collection("users").doc(uid).get();
+    const userDoc = await db.collection("users").where("uid", "==", uid).get();
 
-    if (!userDoc.exists || !userDoc.data()?.isAdmin) {
+    if (userDoc.empty || !userDoc.docs[0].data()?.isAdmin) {
       res.status(403).json({ message: "Acceso denegado" });
       return;
     }
