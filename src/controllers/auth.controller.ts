@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
 import { transporter } from "../config/mailer";
 import { verifyCaptcha } from "../middlewares/verifyCaptcha";
+import { createUserProfile } from "./user.controller";
 
 interface FirebaseAuthResponse {
   idToken: string;
@@ -42,13 +43,7 @@ export const forgotPassword = async (
 };
 
 export const login = async (req: Request, res: Response): Promise<any> => {
-  const { email, password, captcha } = req.body;
-
-  const isHuman = await verifyCaptcha(captcha);
-
-  if (!isHuman) {
-    return res.status(400).json({ error: "Captcha verification failed" });
-  }
+  const { email, password } = req.body;
 
   try {
     const { data } = await axios.post<FirebaseAuthResponse>(
@@ -67,4 +62,30 @@ export const login = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
-export const register = async (req: Request, res: Response): Promise<any> => {};
+export const register = async (req: Request, res: Response): Promise<any> => {
+  const { email, password, captcha } = req.body;
+
+  const isHuman = await verifyCaptcha(captcha);
+
+  if (!isHuman) {
+    return res.status(400).json({ error: "Captcha verification failed" });
+  }
+
+  try {
+    const { data } = await axios.post<FirebaseAuthResponse>(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${process.env.FIREBASE_API_KEY}`,
+      {
+        email,
+        password,
+        returnSecureToken: true,
+      }
+    );
+
+    await createUserProfile(data.localId, email);
+
+    return res.status(201).json({ token: data.idToken, userId: data.localId });
+  } catch (error: any) {
+    console.error(error.response?.data || error);
+    return res.status(400).json({ error: "No se pudo registrar el usuario" });
+  }
+};
