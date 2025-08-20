@@ -32,7 +32,7 @@ export interface Course {
   category?: string;
   coverImageUrl?: string;
   modules: Module[];
-  createdAt: FirebaseFirestore.Timestamp;
+  createdAt: FirebaseFirestore.Timestamp | string;
   updatedAt?: FirebaseFirestore.Timestamp;
 }
 

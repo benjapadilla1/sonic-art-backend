@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { Timestamp } from "firebase-admin/firestore";
 import { v4 as uuidv4 } from "uuid";
 import admin, { db } from "../config/firebase";
 import { Course } from "../models/firestore";
@@ -24,6 +25,10 @@ export const getAllCourses = async (_req: Request, res: Response) => {
         return {
           id: doc.id,
           ...course,
+          createdAt:
+            course.createdAt instanceof Timestamp
+              ? course.createdAt.toDate().toISOString()
+              : course.createdAt,
         };
       })
     );

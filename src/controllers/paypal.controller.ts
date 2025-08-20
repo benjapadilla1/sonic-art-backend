@@ -3,13 +3,13 @@ import { Request, Response } from "express";
 import { generateAccessToken } from "../utils/generateAccessToken";
 
 export const createOrder = async (req: Request, res: Response) => {
-  const { items } = req.body; // Array de productos del carrito
+  const { items } = req.body;
 
   try {
     const accessToken = await generateAccessToken();
 
     const totalAmount = items.reduce(
-      (acc: number, item: any) => acc + item.price * item.quantity,
+      (acc: number, item: any) => acc + item.price,
       0
     );
 
@@ -39,7 +39,11 @@ export const createOrder = async (req: Request, res: Response) => {
       }
     );
 
-    res.json(order.data);
+    const approvalUrl = order.data.links.find(
+      (link: any) => link.rel === "approve"
+    );
+
+    res.json({ href: approvalUrl.href });
   } catch (error: any) {
     console.error(error.response?.data ?? error.message);
     res.status(500).json({ error: "Error creating PayPal order" });
@@ -63,6 +67,8 @@ export const captureOrder = async (req: Request, res: Response) => {
       }
     );
 
+    if (capture.data.status === "COMPLETED") {
+    }
     // TODO: Aquí guardar en Firestore la compra confirmada
 
     res.json(capture.data);
