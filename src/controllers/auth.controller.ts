@@ -1,6 +1,8 @@
 import axios from "axios";
 import { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
+import { OAuth2Client } from "google-auth-library";
+import admin from "../config/firebase";
 import { transporter } from "../config/mailer";
 import { verifyCaptcha } from "../middlewares/verifyCaptcha";
 import { createUserProfile } from "./user.controller";
@@ -87,5 +89,62 @@ export const register = async (req: Request, res: Response): Promise<any> => {
   } catch (error: any) {
     console.error(error.response?.data || error);
     return res.status(400).json({ error: "No se pudo registrar el usuario" });
+  }
+};
+
+export const signInWithGoogle = async (req: Request, res: Response) => {
+  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      res.status(400).json({ message: "Token requerido" });
+      return;
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      res.status(400).json({ message: "Token inválido" });
+      return;
+    }
+
+    const { sub: uid, email, name, picture } = payload;
+
+    let userRecord;
+    try {
+      userRecord = await admin.auth().getUser(uid);
+    } catch {
+      userRecord = await admin.auth().createUser({
+        uid,
+        email,
+        displayName: name,
+        photoURL: picture,
+      });
+    }
+
+    const db = admin.firestore();
+    await db.collection("users").doc(userRecord.uid).set(
+      {
+        email: userRecord.email,
+        displayName: userRecord.displayName,
+        photoURL: userRecord.photoURL,
+        provider: "google",
+      },
+      { merge: true }
+    );
+
+    const customToken = await admin.auth().createCustomToken(userRecord.uid);
+
+    res.json({ token: customToken });
+    return;
+  } catch (error) {
+    console.error("Error en signInWithGoogle:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+    return;
   }
 };

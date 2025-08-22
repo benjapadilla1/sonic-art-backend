@@ -72,7 +72,10 @@ export const createUserProfile = async (uid: string, email: string) => {
   }
 };
 
-export const isUserAdmin = async (req: AuthenticatedRequest, res: Response) => {
+export const getUserFromToken = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
   const uid = req.user?.uid;
 
   if (!uid) {
@@ -82,11 +85,12 @@ export const isUserAdmin = async (req: AuthenticatedRequest, res: Response) => {
 
   try {
     const userDoc = await usersCollection.doc(uid).get();
-    if (!userDoc.exists || !userDoc.data()?.isAdmin) {
-      res.status(403).json({ message: "Acceso denegado" });
+    if (!userDoc.exists) {
+      res.status(404).json({ message: "Usuario no encontrado" });
       return;
     }
-    res.status(200).json({ isAdmin: true });
+
+    res.status(200).json({ uid: userDoc.id, ...userDoc.data() });
     return;
   } catch (error) {
     console.error("Error verificando si el usuario es admin:", error);
