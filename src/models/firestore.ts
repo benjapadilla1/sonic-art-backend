@@ -26,6 +26,7 @@ export interface Chapter {
 export interface Course {
   id?: string;
   title: string;
+  introVideoUrl?: string;
   description: string;
   price: number;
   duration: number;
@@ -45,7 +46,7 @@ export interface SamplePack {
   price: number;
   downloadUrl: string;
   category?: string;
-  createdAt: FirebaseFirestore.Timestamp;
+  createdAt: FirebaseFirestore.Timestamp | string;
   updatedAt?: FirebaseFirestore.Timestamp;
 }
 
@@ -70,6 +71,18 @@ export interface UserProfile {
   email: string;
   purchaseHistory?: string[]; // array de IDs de cursos o sample packs comprados
   isAdmin: boolean;
+  provider?: string;
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt?: FirebaseFirestore.Timestamp;
+}
+
+export interface Order {
+  id?: string;
+  userId: string;
+  items: any[];
+  amount: number;
+  currency: string;
+  status: "PENDING" | "COMPLETED" | "CANCELLED";
   createdAt: FirebaseFirestore.Timestamp;
   updatedAt?: FirebaseFirestore.Timestamp;
 }

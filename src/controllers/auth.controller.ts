@@ -1,7 +1,6 @@
 import axios from "axios";
 import { Request, Response } from "express";
 import { getAuth } from "firebase-admin/auth";
-import { OAuth2Client } from "google-auth-library";
 import admin from "../config/firebase";
 import { transporter } from "../config/mailer";
 import { verifyCaptcha } from "../middlewares/verifyCaptcha";
@@ -65,7 +64,7 @@ export const login = async (req: Request, res: Response): Promise<any> => {
 };
 
 export const register = async (req: Request, res: Response): Promise<any> => {
-  const { email, password, captcha } = req.body;
+  const { email, password, displayName, captcha } = req.body;
 
   const isHuman = await verifyCaptcha(captcha);
 
@@ -83,7 +82,7 @@ export const register = async (req: Request, res: Response): Promise<any> => {
       }
     );
 
-    await createUserProfile(data.localId, email);
+    await createUserProfile(data.localId, email, displayName);
 
     return res.status(201).json({ token: data.idToken, userId: data.localId });
   } catch (error: any) {
@@ -93,8 +92,6 @@ export const register = async (req: Request, res: Response): Promise<any> => {
 };
 
 export const signInWithGoogle = async (req: Request, res: Response) => {
-  const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
   try {
     const { idToken } = req.body;
     if (!idToken) {
@@ -102,48 +99,49 @@ export const signInWithGoogle = async (req: Request, res: Response) => {
       return;
     }
 
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    const { data } = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${process.env.FIREBASE_API_KEY}`,
+      {
+        postBody: `id_token=${idToken}&providerId=google.com`,
+        requestUri: process.env.FRONTEND_URL,
+        returnSecureToken: true,
+      }
+    );
 
-    const payload = ticket.getPayload();
-    if (!payload) {
-      res.status(400).json({ message: "Token inválido" });
-      return;
-    }
+    const firebaseIdToken = data.idToken;
+    const uid = data.localId;
 
-    const { sub: uid, email, name, picture } = payload;
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
 
-    let userRecord;
-    try {
-      userRecord = await admin.auth().getUser(uid);
-    } catch {
-      userRecord = await admin.auth().createUser({
+    if (userSnap.exists) {
+      await userRef.set(
+        {
+          email: data.email,
+          displayName: data.displayName,
+          photoURL: data.photoUrl,
+          provider: "google",
+          updatedAt: admin.firestore.Timestamp.now(),
+        },
+        { merge: true }
+      );
+    } else {
+      await userRef.set({
+        email: data.email,
+        displayName: data.displayName,
+        photoURL: data.photoUrl,
+        provider: "google",
         uid,
-        email,
-        displayName: name,
-        photoURL: picture,
+        createdAt: admin.firestore.Timestamp.now(),
+        updatedAt: admin.firestore.Timestamp.now(),
       });
     }
 
-    const db = admin.firestore();
-    await db.collection("users").doc(userRecord.uid).set(
-      {
-        email: userRecord.email,
-        displayName: userRecord.displayName,
-        photoURL: userRecord.photoURL,
-        provider: "google",
-      },
-      { merge: true }
-    );
-
-    const customToken = await admin.auth().createCustomToken(userRecord.uid);
-
-    res.json({ token: customToken });
+    res.json({ token: firebaseIdToken, userId: uid });
     return;
-  } catch (error) {
-    console.error("Error en signInWithGoogle:", error);
+  } catch (error: any) {
+    console.error("Error en signInWithGoogle:", error.response?.data || error);
     res.status(500).json({ error: "Error interno del servidor" });
     return;
   }

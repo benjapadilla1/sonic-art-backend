@@ -41,6 +41,10 @@ export const getAllSamplePacks = async (_req: Request, res: Response) => {
         return {
           id: doc.id,
           ...samplePack,
+          createdAt:
+            samplePack.createdAt instanceof admin.firestore.Timestamp
+              ? samplePack.createdAt.toDate().toISOString()
+              : samplePack.createdAt,
         };
       })
     );

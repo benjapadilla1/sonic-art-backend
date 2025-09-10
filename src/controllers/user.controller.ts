@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import admin from "firebase-admin";
 import { db } from "../config/firebase";
-import { AuthenticatedRequest } from "../middlewares/requireAdmin";
+import { AuthenticatedRequest } from "../middlewares/verifyToken";
 import { UserProfile } from "../models/firestore";
 
 const usersCollection = db.collection("users");
@@ -21,7 +21,7 @@ export const getAllUsers = async (
         uid: doc.id,
         email: data.email,
         isAdmin: data.isAdmin,
-        purchaseHistory: data.purchaseHistory || [],
+        provider: data.provider ?? "email",
         createdAt: data.createdAt?.toDate().toISOString() ?? null,
       });
     });
@@ -56,10 +56,15 @@ export const getUserById = async (
   }
 };
 
-export const createUserProfile = async (uid: string, email: string) => {
+export const createUserProfile = async (
+  uid: string,
+  email: string,
+  displayName: string
+) => {
   const userProfile: UserProfile = {
     uid,
     email,
+    displayName,
     isAdmin: false,
     purchaseHistory: [],
     createdAt: admin.firestore.Timestamp.now(),

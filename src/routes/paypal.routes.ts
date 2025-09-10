@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  cancelOrder,
   captureOrder,
   createOrder,
   paypalWebhook,
@@ -8,8 +9,8 @@ import {
 const router = Router();
 
 router.post("/create-order", createOrder);
-router.get("/capture-order", captureOrder);
-router.get("/cancel-order", captureOrder);
+router.post("/capture-order", captureOrder);
+router.delete("/cancel-order", cancelOrder);
 router.post("/webhook", paypalWebhook);
 
 export default router;

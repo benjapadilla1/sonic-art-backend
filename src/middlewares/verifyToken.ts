@@ -10,7 +10,7 @@ export type AuthenticatedRequest = Request & {
   };
 };
 
-export const requireAdmin = async (
+export const verifyToken = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -30,8 +30,8 @@ export const requireAdmin = async (
 
     const userDoc = await db.collection("users").where("uid", "==", uid).get();
 
-    if (userDoc.empty || !userDoc.docs[0].data()?.isAdmin) {
-      res.status(403).json({ message: "Acceso denegado" });
+    if (userDoc.empty) {
+      res.status(404).json({ message: "Usuario no encontrado" });
       return;
     }
 
@@ -44,7 +44,7 @@ export const requireAdmin = async (
     next();
     return;
   } catch (error) {
-    console.error("Error verificando token o acceso admin:", error);
+    console.error("Error verificando token:", error);
     res.status(401).json({ message: "Token inválido o expirado" });
     return;
   }

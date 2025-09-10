@@ -4,12 +4,12 @@ import {
   getUserById,
   getUserFromToken,
 } from "../controllers/user.controller";
-import { requireAdmin } from "../middlewares/requireAdmin";
+import { verifyToken } from "../middlewares/verifyToken";
 
 const router = Router();
 
 router.get("/", getAllUsers);
-router.get("/me", requireAdmin, getUserFromToken);
+router.get("/me", verifyToken, getUserFromToken);
 router.get("/:uid", getUserById);
 
 export default router;
