@@ -6,6 +6,7 @@ import { getSignedUrlFromKey } from "../utils/getSignedUrlFromKet";
 import { uploadFile } from "./upload.controller";
 
 const samplePackCollection = db.collection("samplePacks");
+const ordersCollection = db.collection("orders");
 
 export const getAllSamplePacks = async (_req: Request, res: Response) => {
   try {
@@ -97,6 +98,45 @@ export const getSamplePackById = async (
   }
 };
 
+export const getPurchasedSamplePacks = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
+  try {
+    const snapshot = await ordersCollection
+      .where("userId", "==", req.params.id)
+      .get();
+
+    if (snapshot.empty) {
+      return res
+        .status(404)
+        .json({ message: "No sample packs found for this user" });
+    }
+
+    let allSamplePacks: any[] = [];
+
+    for (const doc of snapshot.docs) {
+      const orderData = doc.data();
+
+      if (orderData.items && Array.isArray(orderData.items)) {
+        for (const item of orderData.items) {
+          if (item.type === "samplePack") {
+            allSamplePacks.push({
+              ...item,
+              orderId: doc.id,
+            });
+          }
+        }
+      }
+    }
+
+    res.json(allSamplePacks);
+  } catch (error) {
+    console.error("Error fetching sample packs:", error);
+    res.status(500).json({ message: "Error fetching sample packs", error });
+  }
+};
+
 export const createSamplePack = async (req: Request, res: Response) => {
   try {
     const { title, description, price } = req.body;
@@ -115,11 +155,11 @@ export const createSamplePack = async (req: Request, res: Response) => {
     }
 
     // Subir archivo ZIP
-    let zipUrl = "";
+    let downloadUrl = "";
     const zipFile = getFileByField("zipFile");
     if (zipFile) {
       const key = `samplepacks/zips/${uuidv4()}-${zipFile.originalname}`;
-      zipUrl = await uploadFile({ key, file: zipFile });
+      downloadUrl = await uploadFile({ key, file: zipFile });
     }
 
     // Subir previews (pueden ser 1 o más)
@@ -140,7 +180,7 @@ export const createSamplePack = async (req: Request, res: Response) => {
       description,
       price,
       coverImageUrl,
-      zipUrl,
+      downloadUrl,
       previews,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now(),
@@ -173,8 +213,10 @@ export const updateSamplePack = async (req: Request, res: Response) => {
         req.body.coverImageUrl
       );
     }
-    if (req.body.zipUrl) {
-      dataToUpdate.zipUrl = await getSignedUrlFromKey(req.body.zipUrl);
+    if (req.body.downloadUrl) {
+      dataToUpdate.downloadUrl = await getSignedUrlFromKey(
+        req.body.downloadUrl
+      );
     }
 
     await snapshot.docs[0].ref.update({

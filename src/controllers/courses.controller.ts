@@ -7,6 +7,7 @@ import { getSignedUrlFromKey } from "../utils/getSignedUrlFromKet";
 import { uploadFile } from "./upload.controller";
 
 const coursesCollection = db.collection("courses");
+const ordersCollection = db.collection("orders");
 
 export const getAllCourses = async (_req: Request, res: Response) => {
   try {
@@ -76,6 +77,124 @@ export const getCourseById = async (
   } catch (error) {
     console.error("Error fetching course:", error);
     res.status(500).json({ message: "Error fetching course", error });
+  }
+};
+
+export const getPurchasedCourses = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
+  try {
+    const snapshot = await ordersCollection
+      .where("userId", "==", req.params.id)
+      .get();
+
+    if (snapshot.empty) {
+      return res
+        .status(404)
+        .json({ message: "No courses found for this user" });
+    }
+
+    let allCourses: any[] = [];
+
+    for (const doc of snapshot.docs) {
+      const orderData = doc.data();
+
+      if (orderData.items && Array.isArray(orderData.items)) {
+        for (const item of orderData.items) {
+          if (item.type === "course") {
+            allCourses.push({
+              ...item,
+              orderId: doc.id,
+            });
+          }
+        }
+      }
+    }
+
+    res.json(allCourses);
+  } catch (error) {
+    console.error("Error fetching purchased courses:", error);
+    res
+      .status(500)
+      .json({ message: "Error fetching purchased courses", error });
+  }
+};
+
+export const getPurhcarsedCourseById = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
+  try {
+    const ordersSnapshot = await ordersCollection
+      .where("userId", "==", req.params.userId)
+      .get();
+
+    if (ordersSnapshot.empty) {
+      return res
+        .status(404)
+        .json({ message: "No courses found for this user" });
+    }
+
+    let courseFound: any = null;
+
+    for (const orderDoc of ordersSnapshot.docs) {
+      const orderData = orderDoc.data();
+
+      if (orderData.items && Array.isArray(orderData.items)) {
+        for (const item of orderData.items) {
+          if (item.type === "course" && item.id === req.params.courseId) {
+            courseFound = {
+              ...item,
+              orderId: orderDoc.id,
+            };
+            break;
+          }
+        }
+      }
+
+      if (courseFound) break;
+    }
+
+    if (!courseFound) {
+      return res
+        .status(404)
+        .json({ message: "Course not found for this user" });
+    }
+
+    const courseSnapshot = await coursesCollection
+      .where("id", "==", req.params.courseId)
+      .get();
+
+    if (courseSnapshot.empty) {
+      return res.status(404).json({ message: "Course details not found" });
+    }
+
+    const courseDoc = courseSnapshot.docs[0];
+    const courseData = courseDoc.data();
+
+    if (courseData.coverImageUrl) {
+      courseData.coverImageUrl = await getSignedUrlFromKey(
+        courseData.coverImageUrl
+      );
+    }
+
+    if (courseData.modules && Array.isArray(courseData.modules)) {
+      for (const module of courseData.modules) {
+        if (module.chapters && Array.isArray(module.chapters)) {
+          for (const chapter of module.chapters) {
+            if (chapter.videoUrl) {
+              chapter.videoUrl = await getSignedUrlFromKey(chapter.videoUrl);
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ id: courseDoc.id, ...courseData });
+  } catch (error) {
+    console.error("Error fetching purchased course:", error);
+    res.status(500).json({ message: "Error fetching purchased course", error });
   }
 };
 
