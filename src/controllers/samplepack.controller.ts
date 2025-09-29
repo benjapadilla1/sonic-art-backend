@@ -98,6 +98,85 @@ export const getSamplePackById = async (
   }
 };
 
+export const getPurchasedSamplePackById = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
+  try {
+    const { userId, id } = req.params;
+
+    const snapshot = await ordersCollection.where("userId", "==", userId).get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ message: "No orders found for this user" });
+    }
+
+    let found = false;
+
+    for (const doc of snapshot.docs) {
+      const orderData = doc.data();
+
+      if (orderData.items && Array.isArray(orderData.items)) {
+        const exists = orderData.items.some(
+          (item: any) => item.type === "samplePack" && item.id === id
+        );
+
+        if (exists) {
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (!found) {
+      return res
+        .status(404)
+        .json({ message: "Sample pack not found for this user" });
+    }
+
+    const samplePack = await fetchSamplePackById(id);
+    if (!samplePack) {
+      return res
+        .status(404)
+        .json({ message: "Sample pack document not found" });
+    }
+
+    return res.json(samplePack);
+  } catch (error) {
+    console.error("Error fetching purchased sample pack:", error);
+    return res
+      .status(500)
+      .json({ message: "Error fetching purchased sample pack", error });
+  }
+};
+
+async function fetchSamplePackById(id: string): Promise<SamplePack | null> {
+  const snapshot = await samplePackCollection.where("id", "==", id).get();
+
+  if (snapshot.empty) return null;
+
+  const doc = snapshot.docs[0];
+  const samplePack = doc.data() as SamplePack;
+
+  if (samplePack.coverImageUrl) {
+    samplePack.coverImageUrl = await getSignedUrlFromKey(
+      samplePack.coverImageUrl
+    );
+  }
+
+  if (samplePack.downloadUrl) {
+    samplePack.downloadUrl = await getSignedUrlFromKey(samplePack.downloadUrl);
+  }
+
+  if (samplePack.previewTracks && Array.isArray(samplePack.previewTracks)) {
+    samplePack.previewTracks = await Promise.all(
+      samplePack.previewTracks.map((p) => getSignedUrlFromKey(p))
+    );
+  }
+
+  return { id: doc.id, ...samplePack };
+}
+
 export const getPurchasedSamplePacks = async (
   req: Request,
   res: Response

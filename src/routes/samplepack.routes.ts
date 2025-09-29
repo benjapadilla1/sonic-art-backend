@@ -3,6 +3,7 @@ import {
   createSamplePack,
   deleteSamplePack,
   getAllSamplePacks,
+  getPurchasedSamplePackById,
   getPurchasedSamplePacks,
   getSamplePackById,
   updateSamplePack,
@@ -13,7 +14,8 @@ const router = Router();
 
 router.get("/", getAllSamplePacks);
 router.get("/:id", getSamplePackById);
-router.get("/purchased/:id", getPurchasedSamplePacks);
+router.get("/purchased/user/:id", getPurchasedSamplePacks);
+router.get("/purchased/:userId/:id", getPurchasedSamplePackById);
 router.post("/", upload.any(), createSamplePack);
 router.put("/:id", upload.any(), updateSamplePack);
 router.delete("/:id", deleteSamplePack);
