@@ -221,6 +221,13 @@ export const createCourse = async (req: Request, res: Response) => {
       }
     }
 
+    const introVideoFile = getFileByField("introVideo");
+    let introVideoUrl = "";
+    if (introVideoFile) {
+      const key = `videos/${uuidv4()}-${introVideoFile.originalname}`;
+      introVideoUrl = await uploadFile({ key, file: introVideoFile });
+    }
+
     const coverImageFile = getFileByField("coverImage");
     let coverImageUrl = "";
     if (coverImageFile) {
@@ -234,6 +241,7 @@ export const createCourse = async (req: Request, res: Response) => {
       description,
       price,
       duration,
+      introVideoUrl,
       coverImageUrl,
       modules: modulesParsed,
       createdAt: admin.firestore.Timestamp.now(),
@@ -244,7 +252,7 @@ export const createCourse = async (req: Request, res: Response) => {
 
     res.status(201).json({ id: newDoc.id });
   } catch (error) {
-    console.error(error);
+    console.error("Error creating course:", error);
     res.status(500).json({ message: "Error creating course", error });
   }
 };

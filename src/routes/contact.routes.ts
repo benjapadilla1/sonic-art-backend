@@ -1,8 +1,12 @@
 import { Router } from "express";
-import { sendContactEmail } from "../controllers/contact.controller";
+import {
+  sendContactEmail,
+  sendOrderNotificationController,
+} from "../controllers/contact.controller";
 
 const router = Router();
 
 router.post("/", sendContactEmail);
+router.post("/order-notification", sendOrderNotificationController);
 
 export default router;

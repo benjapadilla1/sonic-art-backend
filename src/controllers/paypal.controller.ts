@@ -2,6 +2,7 @@ import axios from "axios";
 import { Request, Response } from "express";
 import admin, { db } from "../config/firebase";
 import { generateAccessToken } from "../utils/generateAccessToken";
+import { sendOrderNotification } from "./contact.controller";
 
 export const createOrder = async (req: Request, res: Response) => {
   const { items, userId } = req.body;
@@ -97,6 +98,12 @@ export const captureOrder = async (req: Request, res: Response) => {
       });
     }
 
+    await sendOrderNotification(
+      orderSnap.data()?.userEmail,
+      token as string,
+      orderSnap.data()?.items || []
+    );
+
     res.json(capture.data);
   } catch (error: any) {
     console.error(error.response?.data ?? error.message);
@@ -120,20 +127,4 @@ export const cancelOrder = async (req: Request, res: Response) => {
     console.error(error.response?.data ?? error.message);
     res.status(500).json({ error: "Error canceling PayPal order" });
   }
-};
-
-export const paypalWebhook = async (req: Request, res: Response) => {
-  const event = req.body;
-
-  console.log("Webhook recibido:", event);
-
-  if (event.event_type === "CHECKOUT.ORDER.APPROVED") {
-    // Aquí podrías manejar lógica adicional si querés procesar antes de la captura
-  }
-
-  if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") {
-    // TODO: Guardar en Firestore el pago confirmado
-  }
-
-  res.sendStatus(200);
 };
