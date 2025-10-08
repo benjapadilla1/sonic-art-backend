@@ -77,6 +77,31 @@ export const createUserProfile = async (
   }
 };
 
+export const updateUserProfile = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+    const { displayName } = req.body;
+
+    const snapshot = await usersCollection.where("uid", "==", uid).get();
+
+    if (!snapshot.empty) {
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
+    }
+
+    await snapshot.docs[0].ref.update({
+      displayName,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    res.status(200).json({ message: "User updated successfully" });
+    return;
+  } catch (error) {
+    console.log("Error updating the user profile", error);
+    return;
+  }
+};
+
 export const getUserFromToken = async (
   req: AuthenticatedRequest,
   res: Response

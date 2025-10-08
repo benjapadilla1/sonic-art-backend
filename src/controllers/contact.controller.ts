@@ -1,6 +1,14 @@
 import { Request, Response } from "express";
 import { transporter } from "../config/mailer";
 
+interface SendMailOptions {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}
+
 export const sendContactEmail = async (
   req: Request,
   res: Response
@@ -51,14 +59,6 @@ export const sendOrderNotificationController = async (
         </li>`
       )
       .join("");
-
-    interface SendMailOptions {
-      from: string;
-      to: string;
-      subject: string;
-      text: string;
-      html: string;
-    }
 
     const mailOptions: SendMailOptions = {
       from: `"SonicArt" <info@sonicartlab.com>`,
