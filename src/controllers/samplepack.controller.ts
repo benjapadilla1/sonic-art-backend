@@ -182,34 +182,59 @@ export const getPurchasedSamplePacks = async (
   res: Response
 ): Promise<any> => {
   try {
-    const snapshot = await ordersCollection
-      .where("userId", "==", req.params.id)
+    const { id: userId } = req.params;
+
+    const ordersSnapshot = await db
+      .collection("orders")
+      .where("userId", "==", userId)
+      .where("status", "==", "COMPLETED")
       .get();
 
-    if (snapshot.empty) {
+    if (ordersSnapshot.empty) {
       return res
         .status(404)
-        .json({ message: "No sample packs found for this user" });
+        .json({ message: "No completed orders found for this user" });
     }
 
-    let allSamplePacks: any[] = [];
+    const purchasedSamplePackIds: string[] = [];
 
-    for (const doc of snapshot.docs) {
+    for (const doc of ordersSnapshot.docs) {
       const orderData = doc.data();
 
       if (orderData.items && Array.isArray(orderData.items)) {
-        for (const item of orderData.items) {
-          if (item.type === "samplePack") {
-            allSamplePacks.push({
-              ...item,
-              orderId: doc.id,
-            });
+        orderData.items.forEach((item: any) => {
+          if (item.type === "samplePack" && item.id) {
+            purchasedSamplePackIds.push(item.id);
           }
-        }
+        });
       }
     }
 
-    res.json(allSamplePacks);
+    if (purchasedSamplePackIds.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No sample packs found in orders" });
+    }
+
+    const samplePackBatches = [];
+    for (let i = 0; i < purchasedSamplePackIds.length; i += 10) {
+      const batchIds = purchasedSamplePackIds.slice(i, i + 10);
+      const snapshot = await db
+        .collection("samplePacks")
+        .where("id", "in", batchIds)
+        .get();
+      samplePackBatches.push(
+        ...snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    }
+
+    if (samplePackBatches.length === 0) {
+      return res.status(404).json({
+        message: "No sample packs found (they may have been deleted)",
+      });
+    }
+
+    res.json(samplePackBatches);
   } catch (error) {
     console.error("Error fetching sample packs:", error);
     res.status(500).json({ message: "Error fetching sample packs", error });

@@ -12,6 +12,6 @@ const router = Router();
 router.get("/", getAllUsers);
 router.get("/me", verifyToken, getUserFromToken);
 router.get("/:uid", getUserById);
-router.put("/:uid", verifyToken, updateUserProfile);
+router.put("/:uid", updateUserProfile);
 
 export default router;

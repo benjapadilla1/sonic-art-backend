@@ -85,34 +85,49 @@ export const getPurchasedCourses = async (
   res: Response
 ): Promise<any> => {
   try {
-    const snapshot = await ordersCollection
-      .where("userId", "==", req.params.id)
+    const { id: userId } = req.params;
+
+    const ordersSnapshot = await db
+      .collection("orders")
+      .where("userId", "==", userId)
+      .where("status", "==", "COMPLETED")
       .get();
 
-    if (snapshot.empty) {
+    if (ordersSnapshot.empty) {
       return res
         .status(404)
-        .json({ message: "No courses found for this user" });
+        .json({ message: "No completed orders found for this user" });
     }
 
-    let allCourses: any[] = [];
+    const purchasedCourseIds: string[] = [];
 
-    for (const doc of snapshot.docs) {
+    for (const doc of ordersSnapshot.docs) {
       const orderData = doc.data();
 
       if (orderData.items && Array.isArray(orderData.items)) {
-        for (const item of orderData.items) {
-          if (item.type === "course") {
-            allCourses.push({
-              ...item,
-              orderId: doc.id,
-            });
+        orderData.items.forEach((item: any) => {
+          if (item.type === "course" && item.id) {
+            purchasedCourseIds.push(item.id);
           }
-        }
+        });
       }
     }
 
-    res.json(allCourses);
+    if (purchasedCourseIds.length === 0) {
+      return res.status(404).json({ message: "No courses found in orders" });
+    }
+
+    const coursesSnapshot = await db
+      .collection("courses")
+      .where("id", "in", purchasedCourseIds.slice(0, 10))
+      .get();
+
+    const purchasedCourses = coursesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json(purchasedCourses);
   } catch (error) {
     console.error("Error fetching purchased courses:", error);
     res
@@ -121,7 +136,7 @@ export const getPurchasedCourses = async (
   }
 };
 
-export const getPurhcarsedCourseById = async (
+export const getPurchasedCourseById = async (
   req: Request,
   res: Response
 ): Promise<any> => {
@@ -211,8 +226,13 @@ export const createCourse = async (req: Request, res: Response) => {
 
     for (let m = 0; m < modulesParsed.length; m++) {
       const module = modulesParsed[m];
+      module.id = uuidv4();
+
       for (let c = 0; c < module.chapters.length; c++) {
         const chapter = module.chapters[c];
+
+        chapter.id = uuidv4();
+
         const file = getFileByField(chapter.videoUrl);
         if (file) {
           const key = `videos/${uuidv4()}-${file.originalname}`;
@@ -259,30 +279,84 @@ export const createCourse = async (req: Request, res: Response) => {
 
 export const updateCourse = async (req: Request, res: Response) => {
   try {
-    const snapshot = await coursesCollection
-      .where("id", "==", req.params.id)
-      .get();
+    const { id } = req.params;
+    const snapshot = await coursesCollection.where("id", "==", id).get();
+
     if (snapshot.empty) {
-      res.status(404).json({ message: "Course not found" });
-      return;
+      return res.status(404).json({ message: "Course not found" });
     }
 
-    let dataToUpdate = { ...req.body };
-    if (req.body.coverImageUrl) {
-      const signedUrl = await getSignedUrlFromKey(req.body.coverImageUrl);
-      dataToUpdate.coverImageUrl = signedUrl;
+    const courseDoc = snapshot.docs[0];
+    const dataToUpdate: any = {};
+
+    const files = req.files as Express.Multer.File[] | undefined;
+    const getFileByField = (fieldname: string) =>
+      files?.find((f) => f.fieldname === fieldname);
+
+    const updatableFields = ["title", "description", "price", "duration"];
+
+    for (const field of updatableFields) {
+      if (req.body[field] !== undefined) {
+        dataToUpdate[field] = req.body[field];
+      }
     }
 
-    await snapshot.docs[0].ref.update({
-      ...dataToUpdate,
-      updatedAt: admin.firestore.Timestamp.now(),
+    // 🔹 Procesar coverImage (si hay nuevo)
+    const coverImageFile = getFileByField("coverImage");
+    console.log(coverImageFile);
+    if (coverImageFile) {
+      const key = `cursos/${uuidv4()}-${coverImageFile.originalname}`;
+      dataToUpdate.coverImageUrl = await uploadFile({
+        key,
+        file: coverImageFile,
+      });
+    }
+
+    // 🔹 Procesar introVideo (si hay nuevo)
+    const introVideoFile = getFileByField("introVideo");
+    if (introVideoFile) {
+      const key = `videos/${uuidv4()}-${introVideoFile.originalname}`;
+      dataToUpdate.introVideoUrl = await uploadFile({
+        key,
+        file: introVideoFile,
+      });
+    }
+
+    // 🔹 Procesar módulos (si los envían)
+    if (req.body.modules) {
+      const rawModules =
+        typeof req.body.modules === "string"
+          ? JSON.parse(req.body.modules)
+          : req.body.modules;
+
+      for (const module of rawModules) {
+        if (!module.id) module.id = uuidv4();
+
+        for (const chapter of module.chapters || []) {
+          if (!chapter.id) chapter.id = uuidv4();
+
+          const file = getFileByField(chapter.videoUrl);
+          if (file) {
+            const key = `videos/${uuidv4()}-${file.originalname}`;
+            const url = await uploadFile({ key, file });
+            chapter.videoUrl = url;
+          }
+        }
+      }
+
+      dataToUpdate.modules = rawModules;
+    }
+
+    dataToUpdate.updatedAt = admin.firestore.Timestamp.now();
+    await courseDoc.ref.update(dataToUpdate);
+
+    return res.status(200).json({
+      message: "Course updated successfully",
+      updatedFields: Object.keys(dataToUpdate),
     });
-
-    res.status(200).json({ message: "Course updated successfully" });
-    return;
   } catch (error) {
-    res.status(500).json({ message: "Error updating course", error });
-    return;
+    console.error("Error updating course:", error);
+    return res.status(500).json({ message: "Error updating course", error });
   }
 };
 

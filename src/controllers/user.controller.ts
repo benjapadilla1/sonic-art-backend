@@ -84,7 +84,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     const snapshot = await usersCollection.where("uid", "==", uid).get();
 
-    if (!snapshot.empty) {
+    if (snapshot.empty) {
       res.status(404).json({ error: "Usuario no encontrado" });
       return;
     }

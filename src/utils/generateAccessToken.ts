@@ -13,6 +13,9 @@ export const generateAccessToken = async () => {
           username: process.env.PAYPAL_CLIENT_ID ?? "",
           password: process.env.PAYPAL_SECRET_KEY ?? "",
         },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
       }
     );
 

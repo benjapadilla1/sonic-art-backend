@@ -1,4 +1,4 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2 } from "../config/s3Client";
 
 interface UploadFile {
@@ -21,5 +21,19 @@ export const uploadFile = async ({ key, file }: UploadFile) => {
   } catch (err) {
     console.error(err);
     throw new Error("Error uploading file to Cloudflare R2.");
+  }
+};
+
+export const deleteFile = async (key: string) => {
+  try {
+    await r2.send(
+      new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET,
+        Key: key,
+      })
+    );
+  } catch (err) {
+    console.error(err);
+    throw new Error("Error deleting file from Cloudflare R2.");
   }
 };

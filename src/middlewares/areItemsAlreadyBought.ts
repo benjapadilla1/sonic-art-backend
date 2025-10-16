@@ -17,6 +17,7 @@ export const areItemsAlreadyBought = async (
     const snapshot = await db
       .collection("orders")
       .where("userId", "==", userId)
+      .where("status", "==", "COMPLETED")
       .get();
 
     if (snapshot.empty) {
