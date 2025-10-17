@@ -283,7 +283,8 @@ export const updateCourse = async (req: Request, res: Response) => {
     const snapshot = await coursesCollection.where("id", "==", id).get();
 
     if (snapshot.empty) {
-      return res.status(404).json({ message: "Course not found" });
+      res.status(404).json({ message: "Course not found" });
+      return;
     }
 
     const courseDoc = snapshot.docs[0];
@@ -350,13 +351,15 @@ export const updateCourse = async (req: Request, res: Response) => {
     dataToUpdate.updatedAt = admin.firestore.Timestamp.now();
     await courseDoc.ref.update(dataToUpdate);
 
-    return res.status(200).json({
+    res.status(200).json({
       message: "Course updated successfully",
       updatedFields: Object.keys(dataToUpdate),
     });
+    return;
   } catch (error) {
     console.error("Error updating course:", error);
-    return res.status(500).json({ message: "Error updating course", error });
+    res.status(500).json({ message: "Error updating course", error });
+    return;
   }
 };
 
