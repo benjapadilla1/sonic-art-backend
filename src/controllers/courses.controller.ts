@@ -173,7 +173,7 @@ export const getPurchasedCourseById = async (
 
       if (orderData.items && Array.isArray(orderData.items)) {
         for (const item of orderData.items) {
-          if (item.type === "course" && item.id === req.params.courseId) {
+          if (item.type === "course" && item.id === req.params.id) {
             courseFound = {
               ...item,
               orderId: orderDoc.id,
@@ -193,7 +193,7 @@ export const getPurchasedCourseById = async (
     }
 
     const courseSnapshot = await coursesCollection
-      .where("id", "==", req.params.courseId)
+      .where("id", "==", req.params.id)
       .get();
 
     if (courseSnapshot.empty) {
