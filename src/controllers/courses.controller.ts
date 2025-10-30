@@ -117,15 +117,30 @@ export const getPurchasedCourses = async (
       return res.status(404).json({ message: "No courses found in orders" });
     }
 
-    const coursesSnapshot = await db
-      .collection("courses")
-      .where("id", "in", purchasedCourseIds.slice(0, 10))
+    const coursesSnapshot = await coursesCollection
+      .where("id", "in", purchasedCourseIds)
       .get();
 
-    const purchasedCourses = coursesSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const purchasedCourses = await Promise.all(
+      coursesSnapshot.docs.map(async (doc) => {
+        const course = doc.data();
+
+        if (course.coverImageUrl) {
+          course.coverImageUrl = await getSignedUrlFromKey(
+            course.coverImageUrl
+          );
+        }
+
+        return {
+          id: doc.id,
+          ...course,
+          createdAt:
+            course.createdAt instanceof Timestamp
+              ? course.createdAt.toDate().toISOString()
+              : course.createdAt,
+        };
+      })
+    );
 
     res.json(purchasedCourses);
   } catch (error) {
