@@ -8,6 +8,18 @@ export const createOrder = async (req: Request, res: Response) => {
   const { items, userId } = req.body;
 
   try {
+    if (!userId) {
+      res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const userEmail = userDoc.data()?.email;
+
     const accessToken = await generateAccessToken();
 
     const totalAmount = items.reduce(
@@ -50,6 +62,7 @@ export const createOrder = async (req: Request, res: Response) => {
       .doc(order.data.id)
       .set({
         userId,
+        userEmail,
         items,
         amount: totalAmount.toFixed(2),
         currency: "USD",
@@ -60,8 +73,13 @@ export const createOrder = async (req: Request, res: Response) => {
     res.json({ href: approvalUrl.href, id: order.data.id });
     return;
   } catch (error: any) {
-    console.error(error.response?.data ?? error.message);
-    res.status(500).json({ error: "Error creating PayPal order" });
+    console.error(
+      "Error creating PayPal order:",
+      error.response?.data ?? error.message
+    );
+    const errorMessage =
+      error.response?.data?.message || "Error creating PayPal order";
+    res.status(500).json({ error: errorMessage });
     return;
   }
 };
@@ -70,10 +88,21 @@ export const captureOrder = async (req: Request, res: Response) => {
   const { token } = req.query;
 
   try {
+    if (!token) {
+      res.status(400).json({ error: "Token is required" });
+      return;
+    }
+
     const orderRef = db.collection("orders").doc(token as string);
     const orderSnap = await orderRef.get();
 
-    if (orderSnap.exists && orderSnap.data()?.status === "COMPLETED") {
+    if (!orderSnap.exists) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    // If already completed, return success
+    if (orderSnap.data()?.status === "COMPLETED") {
       res.json({ success: true, order: orderSnap.data() });
       return;
     }
@@ -91,23 +120,46 @@ export const captureOrder = async (req: Request, res: Response) => {
     );
 
     if (capture.data.status === "COMPLETED") {
+      const orderData = orderSnap.data();
+      const userId = orderData?.userId;
+      const items = orderData?.items || [];
+
+      // Update order status
       await orderRef.update({
         status: "COMPLETED",
         captureData: capture.data,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-    }
 
-    await sendOrderNotification(
-      orderSnap.data()?.userEmail,
-      token as string,
-      orderSnap.data()?.items || []
-    );
+      // Update user purchase history
+      if (userId && items.length > 0) {
+        const userRef = db.collection("users").doc(userId);
+        await userRef.update({
+          purchaseHistory: admin.firestore.FieldValue.arrayUnion(
+            ...items.map((item: any) => ({
+              id: item.id,
+              type: item.type,
+              title: item.title,
+              price: item.price,
+              purchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }))
+          ),
+        });
+      }
+
+      // Send notification email
+      await sendOrderNotification(orderData?.userEmail, token as string, items);
+    }
 
     res.json(capture.data);
   } catch (error: any) {
-    console.error(error.response?.data ?? error.message);
-    res.status(500).json({ error: "Error capturing PayPal order" });
+    console.error(
+      "Error capturing PayPal order:",
+      error.response?.data ?? error.message
+    );
+    const errorMessage =
+      error.response?.data?.message || "Error capturing PayPal order";
+    res.status(500).json({ error: errorMessage });
   }
 };
 

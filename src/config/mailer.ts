@@ -9,7 +9,7 @@ export const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false, // Namecheap Private Email often requires this
+    rejectUnauthorized: false,
   },
   requireTLS: true,
 });

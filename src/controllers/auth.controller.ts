@@ -9,6 +9,7 @@ import { createUserProfile } from "./user.controller";
 interface FirebaseAuthResponse {
   idToken: string;
   localId: string;
+  refreshToken: string;
 }
 
 export const forgotPassword = async (
@@ -56,7 +57,11 @@ export const login = async (req: Request, res: Response): Promise<any> => {
       }
     );
 
-    return res.json({ token: data.idToken, userId: data.localId });
+    return res.json({ 
+      token: data.idToken, 
+      refreshToken: data.refreshToken,
+      userId: data.localId 
+    });
   } catch (error: any) {
     console.error(error.response?.data || error);
     return res.status(401).json({ error: "Credenciales inválidas" });
@@ -84,7 +89,11 @@ export const register = async (req: Request, res: Response): Promise<any> => {
 
     await createUserProfile(data.localId, email, displayName);
 
-    return res.status(201).json({ token: data.idToken, userId: data.localId });
+    return res.status(201).json({ 
+      token: data.idToken, 
+      refreshToken: data.refreshToken,
+      userId: data.localId 
+    });
   } catch (error: any) {
     console.error(error.response?.data || error);
     return res.status(400).json({ error: "No se pudo registrar el usuario" });
@@ -138,7 +147,11 @@ export const signInWithGoogle = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ token: firebaseIdToken, userId: uid });
+    res.json({ 
+      token: firebaseIdToken,
+      refreshToken: data.refreshToken, 
+      userId: uid 
+    });
     return;
   } catch (error: any) {
     console.error("Error en signInWithGoogle:", error.response?.data || error);
