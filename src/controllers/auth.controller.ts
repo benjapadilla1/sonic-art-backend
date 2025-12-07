@@ -57,10 +57,10 @@ export const login = async (req: Request, res: Response): Promise<any> => {
       }
     );
 
-    return res.json({ 
-      token: data.idToken, 
+    return res.json({
+      token: data.idToken,
       refreshToken: data.refreshToken,
-      userId: data.localId 
+      userId: data.localId,
     });
   } catch (error: any) {
     console.error(error.response?.data || error);
@@ -89,10 +89,10 @@ export const register = async (req: Request, res: Response): Promise<any> => {
 
     await createUserProfile(data.localId, email, displayName);
 
-    return res.status(201).json({ 
-      token: data.idToken, 
+    return res.status(201).json({
+      token: data.idToken,
       refreshToken: data.refreshToken,
-      userId: data.localId 
+      userId: data.localId,
     });
   } catch (error: any) {
     console.error(error.response?.data || error);
@@ -129,7 +129,7 @@ export const signInWithGoogle = async (req: Request, res: Response) => {
         {
           email: data.email,
           displayName: data.displayName,
-          photoURL: data.photoUrl,
+          ...(data.photoUrl && { photoURL: data.photoUrl }),
           provider: "google",
           updatedAt: admin.firestore.Timestamp.now(),
         },
@@ -139,7 +139,7 @@ export const signInWithGoogle = async (req: Request, res: Response) => {
       await userRef.set({
         email: data.email,
         displayName: data.displayName,
-        photoURL: data.photoUrl,
+        ...(data.photoUrl && { photoURL: data.photoUrl }),
         provider: "google",
         uid,
         createdAt: admin.firestore.Timestamp.now(),
@@ -147,10 +147,10 @@ export const signInWithGoogle = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ 
+    res.json({
       token: firebaseIdToken,
-      refreshToken: data.refreshToken, 
-      userId: uid 
+      refreshToken: data.refreshToken,
+      userId: uid,
     });
     return;
   } catch (error: any) {
