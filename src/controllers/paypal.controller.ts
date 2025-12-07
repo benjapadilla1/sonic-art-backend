@@ -27,8 +27,14 @@ export const createOrder = async (req: Request, res: Response) => {
       0
     );
 
+    const paypalAPI =
+      process.env.PAYPAL_API ||
+      (process.env.NODE_ENV === "production"
+        ? "https://api-m.paypal.com"
+        : "https://api-m.sandbox.paypal.com");
+
     const order = await axios.post(
-      `${process.env.PAYPAL_API}/v2/checkout/orders`,
+      `${paypalAPI}/v2/checkout/orders`,
       {
         intent: "CAPTURE",
         purchase_units: [
@@ -108,8 +114,16 @@ export const captureOrder = async (req: Request, res: Response) => {
     }
 
     const accessToken = await generateAccessToken();
+
+    // Use live API in production, sandbox otherwise
+    const paypalAPI =
+      process.env.PAYPAL_API ||
+      (process.env.NODE_ENV === "production"
+        ? "https://api-m.paypal.com"
+        : "https://api-m.sandbox.paypal.com");
+
     const capture = await axios.post(
-      `${process.env.PAYPAL_API}/v2/checkout/orders/${token}/capture`,
+      `${paypalAPI}/v2/checkout/orders/${token}/capture`,
       {},
       {
         headers: {

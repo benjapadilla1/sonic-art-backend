@@ -267,25 +267,24 @@ export const createSamplePack = async (req: Request, res: Response) => {
     }
 
     // Subir previews (pueden ser 1 o más)
-    const previews: string[] = [];
-    files
-      .filter((f) => f.fieldname.startsWith("preview"))
-      .forEach(async (previewFile) => {
+    const previewFiles = files.filter((f) => f.fieldname.startsWith("preview"));
+    const previewTracks: string[] = await Promise.all(
+      previewFiles.map(async (previewFile) => {
         const key = `samplepacks/previews/${uuidv4()}-${
           previewFile.originalname
         }`;
-        const uploadedUrl = await uploadFile({ key, file: previewFile });
-        previews.push(uploadedUrl);
-      });
+        return await uploadFile({ key, file: previewFile });
+      })
+    );
 
     const samplePackData = {
       id: uuidv4(),
       title,
       description,
-      price,
+      price: Number(price),
       coverImageUrl,
       downloadUrl,
-      previews,
+      previewTracks,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now(),
     };
@@ -310,16 +309,47 @@ export const updateSamplePack = async (req: Request, res: Response) => {
       return;
     }
 
-    let dataToUpdate = { ...req.body };
+    const { title, description, price } = req.body;
+    const files = req.files as Express.Multer.File[];
+    const getFileByField = (fieldname: string) =>
+      files?.find((f) => f.fieldname === fieldname);
 
-    if (req.body.coverImageUrl) {
-      dataToUpdate.coverImageUrl = await getSignedUrlFromKey(
-        req.body.coverImageUrl
-      );
+    const dataToUpdate: any = {};
+
+    if (title) dataToUpdate.title = title;
+    if (description) dataToUpdate.description = description;
+    if (price) dataToUpdate.price = Number(price);
+
+    // Handle cover image upload if new file provided
+    const coverImageFile = getFileByField("coverImage");
+    if (coverImageFile) {
+      const key = `samplepacks/cover-${uuidv4()}-${
+        coverImageFile.originalname
+      }`;
+      dataToUpdate.coverImageUrl = await uploadFile({
+        key,
+        file: coverImageFile,
+      });
     }
-    if (req.body.downloadUrl) {
-      dataToUpdate.downloadUrl = await getSignedUrlFromKey(
-        req.body.downloadUrl
+
+    // Handle zip file upload if new file provided
+    const zipFile = getFileByField("zipFile");
+    if (zipFile) {
+      const key = `samplepacks/zips/${uuidv4()}-${zipFile.originalname}`;
+      dataToUpdate.downloadUrl = await uploadFile({ key, file: zipFile });
+    }
+
+    // Handle preview tracks upload if new files provided
+    const previewFiles =
+      files?.filter((f) => f.fieldname.startsWith("preview")) || [];
+    if (previewFiles.length > 0) {
+      dataToUpdate.previewTracks = await Promise.all(
+        previewFiles.map(async (previewFile) => {
+          const key = `samplepacks/previews/${uuidv4()}-${
+            previewFile.originalname
+          }`;
+          return await uploadFile({ key, file: previewFile });
+        })
       );
     }
 

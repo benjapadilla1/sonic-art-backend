@@ -351,11 +351,14 @@ export const updateCourse = async (req: Request, res: Response) => {
         for (const chapter of module.chapters || []) {
           if (!chapter.id) chapter.id = uuidv4();
 
-          const file = getFileByField(chapter.videoUrl);
-          if (file) {
-            const key = `videos/${uuidv4()}-${file.originalname}`;
-            const url = await uploadFile({ key, file });
-            chapter.videoUrl = url;
+          // Check if videoUrl is a fieldname pattern (not a URL)
+          if (chapter.videoUrl && typeof chapter.videoUrl === "string" && chapter.videoUrl.startsWith("video-")) {
+            const file = getFileByField(chapter.videoUrl);
+            if (file) {
+              const key = `videos/${uuidv4()}-${file.originalname}`;
+              const url = await uploadFile({ key, file });
+              chapter.videoUrl = url;
+            }
           }
         }
       }
