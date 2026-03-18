@@ -8,7 +8,7 @@ const usersCollection = db.collection("users");
 
 export const getAllUsers = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const snapshot = await usersCollection.get();
@@ -35,7 +35,7 @@ export const getAllUsers = async (
 
 export const getUserById = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   const { uid } = req.params;
 
@@ -59,7 +59,7 @@ export const getUserById = async (
 export const createUserProfile = async (
   uid: string,
   email: string,
-  displayName: string
+  displayName: string,
 ) => {
   const userProfile: UserProfile = {
     uid,
@@ -67,6 +67,7 @@ export const createUserProfile = async (
     displayName,
     isAdmin: false,
     purchaseHistory: [],
+    grantedCourses: [],
     createdAt: admin.firestore.Timestamp.now(),
   };
 
@@ -102,9 +103,49 @@ export const updateUserProfile = async (req: Request, res: Response) => {
   }
 };
 
+export const grantCoursesToUser = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
+  try {
+    const { uid } = req.params;
+    const { courseIds } = req.body;
+
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "courseIds must be a non-empty array" });
+    }
+
+    const userDoc = await usersCollection.doc(uid).get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    const currentGrantedCourses = userDoc.data()?.grantedCourses || [];
+    const newGrantedCourses = Array.from(
+      new Set([...currentGrantedCourses, ...courseIds]),
+    );
+
+    await usersCollection.doc(uid).update({
+      grantedCourses: newGrantedCourses,
+      updatedAt: admin.firestore.Timestamp.now(),
+    });
+
+    return res.status(200).json({
+      message: "Cursos otorgados correctamente",
+      grantedCourses: newGrantedCourses,
+    });
+  } catch (error) {
+    console.error("Error al otorgar cursos:", error);
+    return res.status(500).json({ error: "Error al otorgar cursos" });
+  }
+};
+
 export const getUserFromToken = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
 ) => {
   const uid = req.user?.uid;
 

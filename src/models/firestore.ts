@@ -70,6 +70,7 @@ export interface UserProfile {
   displayName?: string;
   email: string;
   purchaseHistory?: string[]; // array de IDs de cursos o sample packs comprados
+  grantedCourses?: string[]; // array de IDs de cursos otorgados por administrador
   isAdmin: boolean;
   provider?: string;
   createdAt: FirebaseFirestore.Timestamp;

@@ -19,7 +19,7 @@ export const getAllCourses = async (_req: Request, res: Response) => {
 
         if (course.coverImageUrl) {
           course.coverImageUrl = await getSignedUrlFromKey(
-            course.coverImageUrl
+            course.coverImageUrl,
           );
         }
 
@@ -31,7 +31,7 @@ export const getAllCourses = async (_req: Request, res: Response) => {
               ? course.createdAt.toDate().toISOString()
               : course.createdAt,
         };
-      })
+      }),
     );
 
     res.json(courses);
@@ -43,7 +43,7 @@ export const getAllCourses = async (_req: Request, res: Response) => {
 
 export const getCourseById = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const snapshot = await coursesCollection
@@ -82,7 +82,7 @@ export const getCourseById = async (
 
 export const getPurchasedCourses = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const { id: userId } = req.params;
@@ -92,12 +92,6 @@ export const getPurchasedCourses = async (
       .where("userId", "==", userId)
       .where("status", "==", "COMPLETED")
       .get();
-
-    if (ordersSnapshot.empty) {
-      return res
-        .status(404)
-        .json({ message: "No completed orders found for this user" });
-    }
 
     const purchasedCourseIds: string[] = [];
 
@@ -113,12 +107,21 @@ export const getPurchasedCourses = async (
       }
     }
 
-    if (purchasedCourseIds.length === 0) {
-      return res.status(404).json({ message: "No courses found in orders" });
+    const userDoc = await db.collection("users").doc(userId).get();
+    const grantedCourseIds = userDoc.data()?.grantedCourses || [];
+
+    const allCourseIds = Array.from(
+      new Set([...purchasedCourseIds, ...grantedCourseIds]),
+    );
+
+    if (allCourseIds.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No courses found for this user" });
     }
 
     const coursesSnapshot = await coursesCollection
-      .where("id", "in", purchasedCourseIds)
+      .where("id", "in", allCourseIds)
       .get();
 
     const purchasedCourses = await Promise.all(
@@ -127,7 +130,7 @@ export const getPurchasedCourses = async (
 
         if (course.coverImageUrl) {
           course.coverImageUrl = await getSignedUrlFromKey(
-            course.coverImageUrl
+            course.coverImageUrl,
           );
         }
 
@@ -139,7 +142,7 @@ export const getPurchasedCourses = async (
               ? course.createdAt.toDate().toISOString()
               : course.createdAt,
         };
-      })
+      }),
     );
 
     res.json(purchasedCourses);
@@ -153,18 +156,16 @@ export const getPurchasedCourses = async (
 
 export const getPurchasedCourseById = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
-    const ordersSnapshot = await ordersCollection
-      .where("userId", "==", req.params.userId)
-      .get();
+    const courseId = req.params.id;
+    const userId = req.params.userId;
 
-    if (ordersSnapshot.empty) {
-      return res
-        .status(404)
-        .json({ message: "No courses found for this user" });
-    }
+    const ordersSnapshot = await ordersCollection
+      .where("userId", "==", userId)
+      .where("status", "==", "COMPLETED")
+      .get();
 
     let courseFound: any = null;
 
@@ -173,7 +174,7 @@ export const getPurchasedCourseById = async (
 
       if (orderData.items && Array.isArray(orderData.items)) {
         for (const item of orderData.items) {
-          if (item.type === "course" && item.id === req.params.id) {
+          if (item.type === "course" && item.id === courseId) {
             courseFound = {
               ...item,
               orderId: orderDoc.id,
@@ -187,13 +188,22 @@ export const getPurchasedCourseById = async (
     }
 
     if (!courseFound) {
+      const userDoc = await db.collection("users").doc(userId).get();
+      const grantedCourses = userDoc.data()?.grantedCourses || [];
+
+      if (grantedCourses.includes(courseId)) {
+        courseFound = { id: courseId, isGranted: true };
+      }
+    }
+
+    if (!courseFound) {
       return res
         .status(404)
         .json({ message: "Course not found for this user" });
     }
 
     const courseSnapshot = await coursesCollection
-      .where("id", "==", req.params.id)
+      .where("id", "==", courseId)
       .get();
 
     if (courseSnapshot.empty) {
@@ -205,7 +215,7 @@ export const getPurchasedCourseById = async (
 
     if (courseData.coverImageUrl) {
       courseData.coverImageUrl = await getSignedUrlFromKey(
-        courseData.coverImageUrl
+        courseData.coverImageUrl,
       );
     }
 
@@ -352,7 +362,11 @@ export const updateCourse = async (req: Request, res: Response) => {
           if (!chapter.id) chapter.id = uuidv4();
 
           // Check if videoUrl is a fieldname pattern (not a URL)
-          if (chapter.videoUrl && typeof chapter.videoUrl === "string" && chapter.videoUrl.startsWith("video-")) {
+          if (
+            chapter.videoUrl &&
+            typeof chapter.videoUrl === "string" &&
+            chapter.videoUrl.startsWith("video-")
+          ) {
             const file = getFileByField(chapter.videoUrl);
             if (file) {
               const key = `videos/${uuidv4()}-${file.originalname}`;
